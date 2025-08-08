@@ -1,3 +1,4 @@
+
 # This workflow will build a Java project with Gradle, and cache/restore any dependencies to improve the workflow execution time
 # For more information see: https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-java-with-gradle
 
@@ -5,9 +6,9 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: [ - ]
+    #branches: [ main ]
   pull_request:
-    branches: [ - ]
+    #branches: [ main ]
 
 jobs:
   build:
@@ -29,3 +30,5 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Build with Gradle
         run: ./gradlew build
+=======
+>>>>>>> 7d822b0 (Fix GitHub Actions: correct action versions and update docker build workfl)
