@@ -1,0 +1,78 @@
+name: Integration Test Petclinic
+
+on:
+  workflow_run:
+    workflows: ["Docker build and push to GHCR"]  # Exact name of your build workflow
+    types:
+      - completed
+
+jobs:
+  integration-test:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: petclinic
+          MYSQL_USER: petclinicuser
+          MYSQL_PASSWORD: petclinicpass
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -prootpassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set lowercase repo variable
+        id: vars
+        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Set image environment variable
+        run: echo "IMAGE=ghcr.io/${{ steps.vars.outputs.REPO_LC }}:sha-${{ github.event.workflow_run.head_commit.id }}" >> $GITHUB_ENV
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Docker image
+        run: docker pull ${{ env.IMAGE }}
+
+      - name: Run application container
+        run: |
+          docker run --rm -d \
+            --name petclinic-app \
+            --network host \
+            -e SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/petclinic \
+            -e SPRING_DATASOURCE_USERNAME=petclinicuser \
+            -e SPRING_DATASOURCE_PASSWORD=petclinicpass \
+            -p 8080:8080 \
+            ${{ env.IMAGE }}
+
+      - name: Wait for app to be healthy
+        run: |
+          echo "Waiting for Petclinic app to start..."
+          for i in {1..30}; do
+            if curl -sSf http://localhost:8080/actuator/health | grep '"status":"UP"'; then
+              echo "App is healthy!"
+              exit 0
+            fi
+            echo "Waiting for app... ($i)"
+            sleep 5
+          done
+          echo "App did not start in time"
+          docker logs petclinic-app
+          exit 1
+
+      - name: Stop app container
+        if: always()
+        run: docker stop petclinic-app
+  
