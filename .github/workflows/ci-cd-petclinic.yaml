@@ -52,12 +52,15 @@ jobs:
         run: |
           docker run --rm -d \
             --name petclinic-app \
-            --network host \
-            -e SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/petclinic \
+            --network ${{ job.services.mysql.network }} \
+            -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/petclinic \
             -e SPRING_DATASOURCE_USERNAME=petclinicuser \
             -e SPRING_DATASOURCE_PASSWORD=petclinicpass \
             -p 8080:8080 \
             ${{ env.IMAGE }}
+
+      - name: Show app logs (if needed for debugging)
+        run: docker logs petclinic-app || echo "No logs found"
 
       - name: Wait for app to be healthy
         run: |
@@ -77,4 +80,3 @@ jobs:
       - name: Stop app container
         if: always()
         run: docker stop petclinic-app
-  
