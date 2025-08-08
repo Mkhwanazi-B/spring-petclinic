@@ -3,36 +3,33 @@ name: Docker build and push to GHCR
 on:
   push:
     branches: 
-      - main #Any changes made to main branch as trigger
+      - main  # Any changes made to main branch triggers this workflow
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-     - name: checkout repository
-       uses: actions/checkout@v4
-     # This checks out your code so Docker can access the Dockerfile and context
- 
-     - name: Set lowercase repository owner
-       id: vars
-       run: echo "OWNER_LOWER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # This checks out your code so Docker can access the Dockerfile and context
 
+      - name: Set lowercase repository owner
+        run: echo "OWNER_LOWER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-
-     - name: Log in to GitHub Container Registry
-       uses: docker/login-action@v2
-       with:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
         # Uses the built-in GitHub token to authenticate to GHCR for pushing images
 
-     - name: Build and push Docker image
-       uses: docker/build-push-action@v4
-       with:
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
           context: .  # build context is root of your repo (adjust if Dockerfile elsewhere)
           file: ./Dockerfile  # path to Dockerfile; adjust if named differently or nested
-          push: true          # push the image to the registry
-          tags: ghcr.io/${{ github.repository_owner }}/java-apetclinic:${{ github.sha }}
-          # Tags image with repo owner and commit SHA; replace your-image-name with your preferred image name
+          push: true  # push the image to the registry
+          tags: ghcr.io/${{ env.OWNER_LOWER }}/java-apetclinic:${{ github.sha }}
+          # Tags image with lowercase repo owner and commit SHA
