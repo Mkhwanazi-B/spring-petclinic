@@ -25,6 +25,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
         # Uses the built-in GitHub token to authenticate to GHCR for pushing images
 
+      - name: Build Spring Boot app with Maven
+        run: ./mvnw clean package -DskipTests
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
