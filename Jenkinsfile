@@ -11,7 +11,7 @@ pipeline {
       agent {
         docker {
           image 'blessing67/my-maven-docker-agent:latest'
-          args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
+          args '-v /var/run/docker.sock:/var/run/docker.sock --user root --entrypoint=""'
         }
       }
       steps {
@@ -26,7 +26,7 @@ pipeline {
       agent {
         docker {
           image 'docker:20.10.16'
-          args '-v /var/run/docker.sock:/var/run/docker.sock'
+          args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
         }
       }
       steps {
@@ -40,12 +40,12 @@ pipeline {
       agent {
         docker {
           image 'docker:20.10.16'
-          args '-v /var/run/docker.sock:/var/run/docker.sock'
+          args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
         }
       }
       steps {
         script {
-          docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
+          docker.withRegistry('', 'docker-cred') {
             docker.image("${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}").push()
           }
         }
@@ -84,4 +84,3 @@ pipeline {
     }
   }
 }
-
