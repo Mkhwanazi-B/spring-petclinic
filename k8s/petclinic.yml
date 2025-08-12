@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
         - name: workload
-          image: dsyer/petclinic
+          image: blessing67/petclinic:latest # <-- change to your registry
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: postgres
