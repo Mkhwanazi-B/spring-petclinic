@@ -7,7 +7,7 @@ pipeline {
   }
 
   stages {
-    stage('Checkout Code') {
+    stage('Checkout & Build Jar') {
       agent {
         docker {
           image 'blessing67/my-maven-docker-agent:latest'
@@ -18,6 +18,7 @@ pipeline {
         script {
           cleanWs()
           git branch: 'main', credentialsId: 'github', url: 'https://github.com/Mkhwanazi-B/spring-petclinic'
+          sh './mvnw clean package -DskipTests'
         }
       }
     }
@@ -71,7 +72,6 @@ pipeline {
               git config user.email "blessing67mkhwanazi@gmail.com"
               git config user.name "Blessing Mkhwanazi"
 
-              # Update image tag in petclinic.yml (adjust path if needed)
               sed -i "s|image: docker.io/blessing67/petclinic:.*|image: docker.io/blessing67/petclinic:${BUILD_NUMBER}|g" k8s/petclinic.yml
 
               git add k8s/petclinic.yml
