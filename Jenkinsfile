@@ -1,5 +1,5 @@
 pipeline {
-  agent none
+  agent any
 
   environment {
     REGISTRY  = "docker.io"
@@ -8,47 +8,36 @@ pipeline {
 
   stages {
     stage('Checkout & Build Jar') {
-      agent {
-        docker {
-         image 'maven:3.9-eclipse-temurin-17'
-         args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
-          }
-        }
       steps {
         script {
           cleanWs()
           checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
-                    userRemoteConfigs: [[credentialsId: 'github',
+                    userRemoteConfigs: [[credentialsId: 'docker-cred',
                                          url: 'https://github.com/Mkhwanazi-B/spring-petclinic.git']]])
-          sh './mvnw clean package -DskipTests'
-          stash includes: 'target/*.jar', name: 'jar-artifact'
+          
+          // Use Docker to run Maven
+          sh '''
+            docker run --rm \
+              -v $(pwd):/workspace \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -w /workspace \
+              maven:3.9-eclipse-temurin-17 \
+              mvn clean package -DskipTests
+          '''
         }
       }
     }
 
     stage('Build Docker Image') {
-      agent {
-        docker {
-          image 'docker:20.10.16'
-          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
-        }
-      }
       steps {
         script {
-          unstash 'jar-artifact'          // retrieve the jar
           sh "docker build -f Dockerfile -t ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} ."
         }
       }
     }
 
     stage('Push Docker Image') {
-      agent {
-        docker {
-          image 'docker:20.10.16'
-          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
-        }
-      }
       steps {
         script {
           docker.withRegistry('', 'docker-cred') {
@@ -59,7 +48,6 @@ pipeline {
     }
 
     stage('Deploy to Kubernetes') {
-      agent any
       steps {
         withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
           sh "kubectl apply -f k8s/db.yml"
@@ -69,7 +57,6 @@ pipeline {
     }
 
     stage('GitOps Commit') {
-      agent any
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh """
