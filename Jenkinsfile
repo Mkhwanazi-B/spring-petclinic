@@ -2,8 +2,9 @@ pipeline {
     agent none
 
     environment {
-        REGISTRY = "docker.io"
-        IMAGE_NAME = "blessing67/petclinic"
+        REGISTRY         = "docker.io"
+        IMAGE_NAME       = "blessing67/petclinic"
+        DOCKER_CLI_IMAGE = "docker:20.10.16" // Valid Docker CLI image
     }
 
     stages {
@@ -36,9 +37,8 @@ pipeline {
 
         stage('Build Docker Image') {
             agent {
-                // Use a standard Docker CLI image instead of dind to avoid entrypoint issues and simplify permissions
                 docker {
-                    image 'docker:20.10.16-cli'
+                    image "${DOCKER_CLI_IMAGE}"
                     args  '-v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
@@ -53,7 +53,7 @@ pipeline {
         stage('Push Docker Image') {
             agent {
                 docker {
-                    image 'docker:20.10.16-cli' // Use the same image for consistency
+                    image "${DOCKER_CLI_IMAGE}"
                     args  '-v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
