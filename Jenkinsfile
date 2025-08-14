@@ -10,11 +10,10 @@ pipeline {
     stage('Checkout & Build Jar') {
       agent {
         docker {
-          /* Switch to an official image that already contains bash & git */
-          image 'maven:3.9-eclipse-temurin-17'
-          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
+         image 'maven:3.9-eclipse-temurin-17'
+         args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
+          }
         }
-      }
       steps {
         script {
           cleanWs()
