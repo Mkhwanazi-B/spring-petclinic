@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+  agent none
 
   environment {
     REGISTRY  = "docker.io"
@@ -8,36 +8,53 @@ pipeline {
 
   stages {
     stage('Checkout & Build Jar') {
+      agent {
+        docker {
+         image 'maven:3.9-eclipse-temurin-17'
+         args  '-v /var/run/docker.sock:/var/run/docker.sock --user root -v /tmp:/tmp'
+          }
+        }
       steps {
         script {
           cleanWs()
           checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
-                    userRemoteConfigs: [[credentialsId: 'docker-cred',
+                    userRemoteConfigs: [[credentialsId: 'docker-cred',  // Changed from 'github'
                                          url: 'https://github.com/Mkhwanazi-B/spring-petclinic.git']]])
           
-          // Use Docker to run Maven
-          sh '''
-            docker run --rm \
-              -v $(pwd):/workspace \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -w /workspace \
-              maven:3.9-eclipse-temurin-17 \
-              mvn clean package -DskipTests
-          '''
+          // Make mvnw executable (critical fix)
+          sh 'chmod +x ./mvnw'
+          
+          // Alternative approach - use maven directly instead of wrapper
+          sh 'mvn clean package -DskipTests'
+          
+          stash includes: 'target/*.jar', name: 'jar-artifact'
         }
       }
     }
 
     stage('Build Docker Image') {
+      agent {
+        docker {
+          image 'docker:20.10.16-dind'  // Changed to dind version
+          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root --privileged'
+        }
+      }
       steps {
         script {
+          unstash 'jar-artifact'
           sh "docker build -f Dockerfile -t ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} ."
         }
       }
     }
 
     stage('Push Docker Image') {
+      agent {
+        docker {
+          image 'docker:20.10.16-dind'  // Changed to dind version
+          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root --privileged'
+        }
+      }
       steps {
         script {
           docker.withRegistry('', 'docker-cred') {
@@ -47,30 +64,41 @@ pipeline {
       }
     }
 
-    stage('Deploy to Kubernetes') {
-      steps {
-        withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
-          sh "kubectl apply -f k8s/db.yml"
-          sh "kubectl apply -f k8s/petclinic.yml"
-        }
-      }
-    }
-
-    stage('GitOps Commit') {
+    stage('Update Deployment Manifest') {
+      agent any
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh """
+            # Configure git
             git config user.email "blessing67mkhwanazi@gmail.com"
             git config user.name "Blessing Mkhwanazi"
 
+            # Update the image tag in deployment file
             sed -i "s|image: docker.io/blessing67/petclinic:.*|image: docker.io/blessing67/petclinic:${BUILD_NUMBER}|g" k8s/petclinic.yml
 
+            # Commit and push the change
             git add k8s/petclinic.yml
-            git diff --cached --quiet || git commit -m "Update petclinic image tag to ${BUILD_NUMBER}"
-            git push https://${GITHUB_TOKEN}@github.com/Mkhwanazi-B/spring-petclinic HEAD:main
+            if git diff --cached --quiet; then
+              echo "No changes to commit"
+            else
+              git commit -m "🚀 Deploy petclinic:${BUILD_NUMBER}"
+              git push https://${GITHUB_TOKEN}@github.com/Mkhwanazi-B/spring-petclinic HEAD:main
+              echo "✅ Updated deployment manifest - ArgoCD will handle deployment"
+            fi
           """
         }
       }
+    }
+  }
+
+  post {
+    success {
+      echo "🎉 CI Pipeline completed successfully!"
+      echo "📦 Docker image: ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+      echo "🔄 ArgoCD will detect the updated manifest and deploy automatically"
+    }
+    failure {
+      echo "❌ Pipeline failed. Check the logs above."
     }
   }
 }
