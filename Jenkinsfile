@@ -7,7 +7,18 @@ pipeline {
   }
 
   stages {
-    stage('Checkout & Build Jar') {
+    stage('Prepare Workspace') {
+      agent any
+      steps {
+        cleanWs()
+        checkout([$class: 'GitSCM',
+                  branches: [[name: '*/main']],
+                  userRemoteConfigs: [[credentialsId: 'docker-cred',
+                                       url: 'https://github.com/Mkhwanazi-B/spring-petclinic.git']]])
+      }
+    }
+
+    stage('Build Jar') {
       agent {
         docker {
           image 'maven:3.9-eclipse-temurin-17'
@@ -16,16 +27,8 @@ pipeline {
       }
       steps {
         script {
-          cleanWs()
-          checkout([$class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[credentialsId: 'docker-cred',
-                                         url: 'https://github.com/Mkhwanazi-B/spring-petclinic.git']]])
-          
-          // Make mvnw executable and then run it
           sh 'chmod +x ./mvnw'
           sh './mvnw clean package -DskipTests'
-          
           stash includes: 'target/*.jar', name: 'jar-artifact'
         }
       }
@@ -67,14 +70,11 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
           sh """
-            # Configure git
             git config user.email "blessing67mkhwanazi@gmail.com"
             git config user.name "Blessing Mkhwanazi"
 
-            # Update the image tag in deployment file
             sed -i "s|image: docker.io/blessing67/petclinic:.*|image: docker.io/blessing67/petclinic:${BUILD_NUMBER}|g" k8s/petclinic.yml
 
-            # Commit and push the change
             git add k8s/petclinic.yml
             if git diff --cached --quiet; then
               echo "No changes to commit"
