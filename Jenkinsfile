@@ -36,9 +36,10 @@ pipeline {
 
         stage('Build Docker Image') {
             agent {
+                // Use a standard Docker CLI image instead of dind to avoid entrypoint issues and simplify permissions
                 docker {
-                    image 'docker:20.10.16-dind'
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock --privileged' // Removed --user root
+                    image 'docker:20.10.16-cli'
+                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
@@ -52,8 +53,8 @@ pipeline {
         stage('Push Docker Image') {
             agent {
                 docker {
-                    image 'docker:20.10.16-dind'
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock --user root --privileged'
+                    image 'docker:20.10.16-cli' // Use the same image for consistency
+                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
