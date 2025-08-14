@@ -2,7 +2,7 @@ pipeline {
   agent none
 
   environment {
-    REGISTRY  = "docker.io"
+    REGISTRY = "docker.io"
     IMAGE_NAME = "blessing67/petclinic"
   }
 
@@ -10,23 +10,21 @@ pipeline {
     stage('Checkout & Build Jar') {
       agent {
         docker {
-         image 'maven:3.9-eclipse-temurin-17'
-         args  '-v /var/run/docker.sock:/var/run/docker.sock --user root -v /tmp:/tmp'
-          }
+          image 'maven:3.9-eclipse-temurin-17'
+          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root -v /tmp:/tmp'
         }
+      }
       steps {
         script {
           cleanWs()
           checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
-                    userRemoteConfigs: [[credentialsId: 'docker-cred',  // Changed from 'github'
+                    userRemoteConfigs: [[credentialsId: 'docker-cred',
                                          url: 'https://github.com/Mkhwanazi-B/spring-petclinic.git']]])
           
-          // Make mvnw executable (critical fix)
+          // Make mvnw executable and then run it
           sh 'chmod +x ./mvnw'
-          
-          // Alternative approach - use maven directly instead of wrapper
-          sh 'mvn clean package -DskipTests'
+          sh './mvnw clean package -DskipTests'
           
           stash includes: 'target/*.jar', name: 'jar-artifact'
         }
@@ -36,7 +34,7 @@ pipeline {
     stage('Build Docker Image') {
       agent {
         docker {
-          image 'docker:20.10.16-dind'  // Changed to dind version
+          image 'docker:20.10.16-dind'
           args  '-v /var/run/docker.sock:/var/run/docker.sock --user root --privileged'
         }
       }
@@ -51,7 +49,7 @@ pipeline {
     stage('Push Docker Image') {
       agent {
         docker {
-          image 'docker:20.10.16-dind'  // Changed to dind version
+          image 'docker:20.10.16-dind'
           args  '-v /var/run/docker.sock:/var/run/docker.sock --user root --privileged'
         }
       }
