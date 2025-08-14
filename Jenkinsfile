@@ -2,7 +2,7 @@ pipeline {
   agent none
 
   environment {
-    REGISTRY = "docker.io"
+    REGISTRY  = "docker.io"
     IMAGE_NAME = "blessing67/petclinic"
   }
 
@@ -10,15 +10,20 @@ pipeline {
     stage('Checkout & Build Jar') {
       agent {
         docker {
-          image 'blessing67/my-maven-docker-agent:latest'
-          args '-v /var/run/docker.sock:/var/run/docker.sock --user root --entrypoint=""'
+          /* Switch to an official image that already contains bash & git */
+          image 'maven:3.9-eclipse-temurin-17'
+          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
         }
       }
       steps {
         script {
           cleanWs()
-          git branch: 'main', credentialsId: 'github', url: 'https://github.com/Mkhwanazi-B/spring-petclinic'
+          checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[credentialsId: 'github',
+                                         url: 'https://github.com/Mkhwanazi-B/spring-petclinic.git']]])
           sh './mvnw clean package -DskipTests'
+          stash includes: 'target/*.jar', name: 'jar-artifact'
         }
       }
     }
@@ -27,11 +32,12 @@ pipeline {
       agent {
         docker {
           image 'docker:20.10.16'
-          args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
+          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
         }
       }
       steps {
         script {
+          unstash 'jar-artifact'          // retrieve the jar
           sh "docker build -f Dockerfile -t ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} ."
         }
       }
@@ -41,7 +47,7 @@ pipeline {
       agent {
         docker {
           image 'docker:20.10.16'
-          args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
+          args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
         }
       }
       steps {
@@ -67,18 +73,16 @@ pipeline {
       agent any
       steps {
         withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-          script {
-            sh """
-              git config user.email "blessing67mkhwanazi@gmail.com"
-              git config user.name "Blessing Mkhwanazi"
+          sh """
+            git config user.email "blessing67mkhwanazi@gmail.com"
+            git config user.name "Blessing Mkhwanazi"
 
-              sed -i "s|image: docker.io/blessing67/petclinic:.*|image: docker.io/blessing67/petclinic:${BUILD_NUMBER}|g" k8s/petclinic.yml
+            sed -i "s|image: docker.io/blessing67/petclinic:.*|image: docker.io/blessing67/petclinic:${BUILD_NUMBER}|g" k8s/petclinic.yml
 
-              git add k8s/petclinic.yml
-              git diff --cached --quiet || git commit -m "Update petclinic image tag to ${BUILD_NUMBER}"
-              git push https://${GITHUB_TOKEN}@github.com/Mkhwanazi-B/spring-petclinic HEAD:main
-            """
-          }
+            git add k8s/petclinic.yml
+            git diff --cached --quiet || git commit -m "Update petclinic image tag to ${BUILD_NUMBER}"
+            git push https://${GITHUB_TOKEN}@github.com/Mkhwanazi-B/spring-petclinic HEAD:main
+          """
         }
       }
     }
