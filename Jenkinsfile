@@ -4,7 +4,7 @@ pipeline {
     environment {
         REGISTRY         = "docker.io"
         IMAGE_NAME       = "blessing67/petclinic"
-        DOCKER_CLI_IMAGE = "docker:20.10.16" // Valid Docker CLI image
+        DOCKER_CLI_IMAGE = "docker:20.10.16"
     }
 
     stages {
@@ -19,46 +19,16 @@ pipeline {
             }
         }
 
-        stage('Build Jar') {
-            agent {
-                docker {
-                    image 'maven:3.9-eclipse-temurin-17'
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock --user root -v /tmp:/tmp'
-                }
-            }
-            steps {
-                script {
-                    sh 'chmod +x ./mvnw'
-                    sh './mvnw clean package -DskipTests'
-                    stash includes: 'target/*.jar', name: 'jar-artifact'
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
+        stage('Build & Push Docker Image') {
             agent {
                 docker {
                     image "${DOCKER_CLI_IMAGE}"
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
+                    args  '-v /var/run/docker.sock:/var/run/docker.sock --user root'
                 }
             }
             steps {
                 script {
-                    unstash 'jar-artifact'
-                    sh "docker build -f Dockerfile -t ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} ."
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            agent {
-                docker {
-                    image "${DOCKER_CLI_IMAGE}"
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                script {
+                    sh "docker build -t ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} ."
                     docker.withRegistry('', 'docker-cred') {
                         docker.image("${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}").push()
                     }
@@ -101,4 +71,3 @@ pipeline {
         }
     }
 }
-
